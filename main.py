@@ -38,23 +38,25 @@ def filter_columns(data_frame):
 
 
     """
-    Perhars they will be necessary in the future
+    I also used in my last querries:
     3, # company_commercial_names
     4, # main_country_code
     6, # main_region
     8, # main_city
     23, # business_model
     25, # product_type
-    30, # main_business_category
-    31,  # main_industry
-    32,  # main_sector
-    34 # phone_numbers
     """
     selected_columns = [
         0, # index_reference
         39,  # website_domain
         40,  # website_tld
-        1  # company_name 
+        1,  # company_name
+        23, # business_model
+        25, # product_type
+        30, # main_business_category
+        31,  # main_industry
+        32,  # main_sector
+        34 # phone_numbers 
     ]
 
 
@@ -130,9 +132,7 @@ def distinguish_companies(sorted_and_filtered_df, original_df):
         index_reference: List[int] = row['index_reference']
         
         if not base_domain or base_domain == "" or pd.isna(base_domain):
-            # TODO: implement later
             """
-            TODO: 
             The part of the code finds to which company to assign an entry from the table;
             entry's 'base_domain' field has not been completed.
             It will try to 'match' other relevant entries, to check where the reference's data has appeared before

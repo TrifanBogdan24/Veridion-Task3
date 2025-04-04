@@ -3,6 +3,7 @@ import os, shutil
 import pandas as pd
 import numpy as np
 from typing import Dict, List
+import re
 
 
 def read_parquet_file(parquet_file_path: str, ):
@@ -91,7 +92,9 @@ def sort_rows(data_frame):
 
 
 
-
+def normalize_text(text: str) -> str:
+    """Lowercase, strip spaces, and remove special characters for comparison"""
+    return re.sub(r'\s+', '', text.lower()) if isinstance(text, str) else ''
 
 
 def distinguish_companies(sorted_and_filtered_df, original_df):
@@ -99,7 +102,29 @@ def distinguish_companies(sorted_and_filtered_df, original_df):
     Return a dictionary: to each base domain is mapped a list of indices for the lines in the original tables
     """
     companies: Dict[str, List[int]] = {}
+    existing_mappings = {}
     
+    # Preprocess original_df to store existing mappings
+    for _, row in original_df.iterrows():
+        index = row.name  # Assuming index is unique
+        base_domain = row.get('base_domain', '')
+        
+        if not base_domain or pd.isna(base_domain):
+            continue
+        
+        normalized_values = {
+            normalize_text(str(row.get(col, '')))
+            for col in [
+                'company_name', 'company_commercial_names', 'main_address', 'phone_numbers',
+                'all_domains', 'facebook_url', 'linked_url', 'instagram_url',
+                'primary_email', 'emails', 'other_emails', 'youtube_url',
+                'android_app_url', 'ios_app_url', 'tiktok_url'
+            ] if row.get(col)  # Ensure non-empty values
+        }
+        
+        existing_mappings[index] = (base_domain, normalized_values)
+    
+    # Process sorted_and_filtered_df
     for _, row in sorted_and_filtered_df.iterrows():
         base_domain: str = row['base_domain']
         index_reference: List[int] = row['index_reference']
@@ -107,10 +132,57 @@ def distinguish_companies(sorted_and_filtered_df, original_df):
         if not base_domain or base_domain == "" or pd.isna(base_domain):
             # TODO: implement later
             """
+            TODO: 
             The part of the code finds to which company to assign an entry from the table;
             entry's 'base_domain' field has not been completed.
             It will try to 'match' other relevant entries, to check where the reference's data has appeared before
+            
+            original_df contains the following relevant: column names:
+            - company_name
+            - company_commercial_names (values separated by `|` pipe operator)
+            - main_address
+            - phone_numbers (values separated by `|` pipe operator)
+            - main_latidune and main_longitude (they work together)
+            - all_domains (values separated by `|` pip operator)
+            - facebook_url
+            - linked_url
+            - instagram_url
+            - primary_email
+            - emails (values separated by `|` pip operator)
+            - other_emails (values separated by `|` pip operator)
+            - youtube_url
+            - android_app_url
+            - ios_app_url
+            - tiktok_url
+
+            If one of the field of the index_references's rows matches
+            the field of an index (already associated to a domain in the dictionary),
+            add it to that specific domain
+
+            Company names and commercial names are compared by storing the values of the entries,
+            lowering the strings, removing the empty spaces and lexico-graphically comparing them
             """
+            matched_domain = None
+            for col in [
+                'company_name', 'company_commercial_names', 'main_address', 'phone_numbers',
+                'all_domains', 'facebook_url', 'linked_url', 'instagram_url',
+                'primary_email', 'emails', 'other_emails', 'youtube_url',
+                'android_app_url', 'ios_app_url', 'tiktok_url'
+            ]:
+                row_value = normalize_text(str(row.get(col, '')))
+                if not row_value:
+                    continue
+                
+                for existing_index, (existing_domain, existing_values) in existing_mappings.items():
+                    if row_value in existing_values:
+                        matched_domain = existing_domain
+                        break
+                
+                if matched_domain:
+                    break
+            
+            if matched_domain:
+                companies.setdefault(matched_domain, []).append(index_reference)
             continue
         
         if base_domain not in companies:
@@ -119,6 +191,7 @@ def distinguish_companies(sorted_and_filtered_df, original_df):
             companies[base_domain].append(index_reference)
     
     return companies
+
 
 
 def main():
@@ -136,7 +209,8 @@ def main():
     # For visual debug: original_df.to_csv("tmp/file_01-veridion_entity_resolution_challenge.csv", index=False)
 
 
-    # For visual debug: sorted_columns_df = desc_sort_columns_by_percentage_of_completness(original_df)
+    # For visual debug:
+    sorted_columns_df = desc_sort_columns_by_percentage_of_completness(original_df)
     # For visual debug: sorted_columns_df.to_csv("tmp/file_02_sorted_columns.csv", index=False)
 
 

@@ -34,22 +34,26 @@ def filter_columns(data_frame):
     """
     Filter the columns, after they were sorted in descending order by the number of completed rows
     """
+
+
+    """
+    Perhars they will be necessary in the future
+    3, # company_commercial_names
+    4, # main_country_code
+    6, # main_region
+    8, # main_city
+    23, # business_model
+    25, # product_type
+    30, # main_business_category
+    31,  # main_industry
+    32,  # main_sector
+    34 # phone_numbers
+    """
     selected_columns = [
         0, # index_reference
         39,  # website_domain
         40,  # website_tld
-        # Perhars they will be necessary in the future
-        # 4, # main_country_code
-        # 6, # main_region
-        # 8, # main_city
-        1,  # company_name 
-        3, # company_commercial_names
-        23, # business_model
-        25, # product_type
-        30, # main_business_category
-        31,  # main_industry
-        32,  # main_sector
-        34 # phone_numbers
+        1  # company_name 
     ]
 
 
@@ -84,15 +88,29 @@ def sort_rows(data_frame):
     return sorted_df
 
 
-def distinguish_companies(data_frame):
+
+
+
+
+
+
+def distinguish_companies(sorted_and_filtered_df, original_df):
+    """
+    Return a dictionary: to each base domain is mapped a list of indices for the lines in the original tables
+    """
     companies: Dict[str, List[int]] = {}
     
-    for _, row in data_frame.iterrows():
-        base_domain = row['base_domain']
-        index_reference = row['index_reference']
+    for _, row in sorted_and_filtered_df.iterrows():
+        base_domain: str = row['base_domain']
+        index_reference: List[int] = row['index_reference']
         
         if not base_domain or base_domain == "" or pd.isna(base_domain):
             # TODO: implement later
+            """
+            The part of the code finds to which company to assign an entry from the table;
+            entry's 'base_domain' field has not been completed.
+            It will try to 'match' other relevant entries, to check where the reference's data has appeared before
+            """
             continue
         
         if base_domain not in companies:
@@ -115,14 +133,14 @@ def main():
 
     original_df = read_parquet_file("veridion_entity_resolution_challenge.snappy.parquet")
     original_df.insert(0, 'index_reference', range(len(original_df)))  # Adds a new first column of indices
-    original_df.to_csv("tmp/file_01-veridion_entity_resolution_challenge.csv", index=False)
+    # For visual debug: original_df.to_csv("tmp/file_01-veridion_entity_resolution_challenge.csv", index=False)
 
-    sorted_columns_df = desc_sort_columns_by_percentage_of_completness(original_df)
-    sorted_columns_df.to_csv("tmp/file_02_sorted_columns.csv", index=False)
-    del sorted_columns_df
+
+    # For visual debug: sorted_columns_df = desc_sort_columns_by_percentage_of_completness(original_df)
+    # For visual debug: sorted_columns_df.to_csv("tmp/file_02_sorted_columns.csv", index=False)
+
 
     filtered_columns_df = filter_columns(original_df)
-    del original_df
 
     base_domains = []
     for i in range(len(filtered_columns_df)):
@@ -134,13 +152,13 @@ def main():
     filtered_columns_df.insert(1, 'base_domain', base_domains)  # Adds a new second column for base_domain
 
 
-    filtered_columns_df.to_csv("tmp/file_03_filtered_columns.csv", index=False)
+    # For visual debug: filtered_columns_df.to_csv("tmp/file_03_filtered_columns.csv", index=False)
 
     sorted_rows_by_domain_df = sort_rows(filtered_columns_df)
     del filtered_columns_df
-    sorted_rows_by_domain_df.to_csv("tmp/file_04_sorted_rows_by_domain.csv", index=False)
+    # For visual debug: sorted_rows_by_domain_df.to_csv("tmp/file_04_sorted_rows_by_domain.csv", index=False)
 
-    companies: Dict[str, List[int]] = distinguish_companies(sorted_rows_by_domain_df)
+    companies: Dict[str, List[int]] = distinguish_companies(sorted_rows_by_domain_df, original_df)
     del sorted_rows_by_domain_df
     sorted_domains = sorted(companies.keys())
     
@@ -150,19 +168,18 @@ def main():
 
     # Classify domains as unique or duplicates
     for domain in sorted_domains:
-        indices: List[int] = companies.get(domain)
-        
-        if len(indices) == 1:
-            df_uniques = pd.concat([df_uniques, pd.DataFrame({'base_domain': [domain], 'index_reference': indices})], ignore_index=True)
+        ref_indices: List[int] = companies.get(domain)
+        if len(ref_indices) == 1:
+            df_uniques = pd.concat([df_uniques, pd.DataFrame({'base_domain': [domain], 'index_reference': ref_indices})], ignore_index=True)
         else:
-            df_duplicates = pd.concat([df_duplicates, pd.DataFrame({'base_domain': [domain], 'indices_reference': [indices]})], ignore_index=True)
+            df_duplicates = pd.concat([df_duplicates, pd.DataFrame({'base_domain': [domain], 'indices_reference': [ref_indices]})], ignore_index=True)
 
 
     df_uniques.to_parquet("output/uniques.parquet")
-    df_uniques.to_csv("tmp/file_05_uniques.csv", index=False)
+    # For visual debug: df_uniques.to_csv("tmp/file_05_uniques.csv", index=False)
 
     df_duplicates.to_parquet("output/duplicates.parquet")
-    df_duplicates.to_csv("tmp/file_06_duplicates.csv", index=False)
+    # For visual debug: df_duplicates.to_csv("tmp/file_06_duplicates.csv", index=False)
 
 
 if __name__ == '__main__':

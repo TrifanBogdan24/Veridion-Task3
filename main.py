@@ -1,6 +1,7 @@
 import csv
 import os, shutil
 import pandas as pd
+import numpy as np
 
 
 def read_parquet_file(parquet_file_path: str, ):
@@ -11,6 +12,8 @@ def read_parquet_file(parquet_file_path: str, ):
             df[col] = df[col].apply(lambda x: str(x) if isinstance(x, (list, dict)) else x)
 
     return df
+
+
 
 
 def desc_sort_columns_by_percentage_of_completness(data_frame):
@@ -31,15 +34,21 @@ def filter_columns(data_frame):
     Filter the columns, after they were sorted in descending order by the number of completed rows
     """
     selected_columns = [
-        6,  # website_domain
-        4,  # website_tld
-        3,  # company_name 
-        9, # main_country_code
-        10, # main_region
-        11, # main_city
-        12, # company_commercial_names
-        15, # primary_phone
-        16 # phone_numbers
+        0, # original_index
+        39,  # website_domain
+        40,  # website_tld
+        # Perhars they will be necessary in the future
+        # 4, # main_country_code
+        # 6, # main_region
+        # 8, # main_city
+        1,  # company_name 
+        3, # company_commercial_names
+        23, # business_model
+        25, # product_type
+        30, # main_business_category
+        31,  # main_industry
+        32,  # main_sector
+        34 # phone_numbers
     ]
 
 
@@ -51,8 +60,22 @@ def filter_columns(data_frame):
 
 
 
-def asc_sort_rows_by_domain(data_frame):
-    return data_frame.sort_values(by=data_frame.columns[0], ascending=True).reset_index(drop=True)
+def sort_rows(data_frame):
+    # TODO: add a second criteria of sorting:
+    # where the 'base_domain' are the same, sort in ascending order by the column 'compnay_name', after you lowered the character of this string and remove all empty spaces
+    # as it is for the 'base_domain', the remaining empty lines of the 'company_name' should be at the end (of the block of the same base_domain)
+    def clean_company_name(series):
+        return series.str.lower().str.replace(" ", "", regex=True)
+
+    # Sort using 'base_domain' first, then transformed 'company_name'
+    sorted_df = data_frame.sort_values(
+        by=['base_domain', 'company_name'],
+        ascending=[True, True],
+        na_position="last",
+        key=lambda col: clean_company_name(col) if col.name == "company_name" else col
+    )
+
+    return sorted_df
 
 def convert_data_frame_to_csv(data_frame, csv_file_path: str):
     data_frame.to_csv(csv_file_path, index=False)
@@ -69,15 +92,26 @@ def main():
 
 
     original_df = read_parquet_file("veridion_entity_resolution_challenge.snappy.parquet")
+    original_df.insert(0, 'original_index', range(len(original_df)))  # Adds a new first column of indices
     convert_data_frame_to_csv(original_df, "tmp/file_01-veridion_entity_resolution_challenge.csv")
 
     sorted_columns_df = desc_sort_columns_by_percentage_of_completness(original_df)
     convert_data_frame_to_csv(sorted_columns_df, "tmp/file_02_sorted_columns.csv")
 
-    filtered_columns_df = filter_columns(sorted_columns_df)
+    filtered_columns_df = filter_columns(original_df)
+    base_domains = []
+    for i in range(len(filtered_columns_df)):
+        website_domain = filtered_columns_df.iloc[i]['website_domain']
+        if website_domain is None or website_domain == "":
+            base_domains.append(np.nan)
+        else:
+            base_domains.append(website_domain.split(".")[0])
+    filtered_columns_df.insert(1, 'base_domain', base_domains)  # Adds a new second column for base_domain
+
+
     convert_data_frame_to_csv(filtered_columns_df, "tmp/file_03_filtered_columns.csv")
 
-    sorted_rows_by_domain_df = asc_sort_rows_by_domain(filtered_columns_df)
+    sorted_rows_by_domain_df = sort_rows(filtered_columns_df)
     convert_data_frame_to_csv(sorted_rows_by_domain_df, "tmp/file_04_sorted_rows_by_domain.csv")
 
 
